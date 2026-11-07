@@ -382,25 +382,34 @@ class Xliff1Unit(XliffUnit):
 
     def _set_local_id(self, component: str) -> None:
         """Store an ID already separated from its XLIFF file component."""
-        self._validate_xml_component(component)
+        encoded = self._validate_xml_component(component)
         self._invalidate_store_indexes()
-        self.xmlelement.set("id", component.replace(ID_SEPARATOR, ID_SEPARATOR_SAFE))
+        # Parsed units usually store this ID already; skip rewriting it
+        if self.xmlelement.get("id") != encoded:
+            self.xmlelement.set("id", encoded)
 
     def _file_id_prefix(self) -> str:
-        try:
-            filename = next(self.xmlelement.iterancestors(self.namespaced("file"))).get(
-                "original"
-            )
-        except StopIteration:
-            return ""
-        return f"{filename}{ID_SEPARATOR}" if filename else ""
+        # Walk parents directly: cheaper than building an iterancestors() iterator
+        filetag = self.namespaced("file")
+        node = self.xmlelement.getparent()
+        while node is not None:
+            if node.tag == filetag:
+                filename = node.get("original")
+                return filename + ID_SEPARATOR if filename else ""
+            node = node.getparent()
+        return ""
 
-    def _validate_xml_component(self, value: str) -> None:
+    def _validate_xml_component(self, value: str) -> str:
+        """Validate an ID without its file component and return it escaped."""
         encoded = value.replace(ID_SEPARATOR, ID_SEPARATOR_SAFE)
-        base.TranslationUnit.validate_id(self, encoded)
-        base.validate_xml_id(encoded)
+        # Printable ASCII never contains characters rejected by the generic
+        # checks, so only scan other IDs character by character.
+        if not (encoded.isascii() and encoded.isprintable()):
+            base.TranslationUnit.validate_id(self, encoded)
+            base.validate_xml_id(encoded)
         if ID_SEPARATOR_SAFE in value:
             raise ValueError("XLIFF identifier contains a reserved escape sequence")
+        return encoded
 
     def validate_id(self, value: str) -> None:
         if not isinstance(value, str):
@@ -411,21 +420,10 @@ class Xliff1Unit(XliffUnit):
         self._validate_xml_component(value[len(prefix) :])
 
     def getid(self):
-        uid = ""
-        try:
-            filename = next(self.xmlelement.iterancestors(self.namespaced("file"))).get(
-                "original"
-            )
-            if filename:
-                uid = filename + ID_SEPARATOR
-        except StopIteration:
-            # unit has no proper file ancestor, probably newly created
-            pass
         # hide the fact that we sanitize ID_SEPARATOR
-        uid += str(self.xmlelement.get("id") or "").replace(
+        return self._file_id_prefix() + (self.xmlelement.get("id") or "").replace(
             ID_SEPARATOR_SAFE, ID_SEPARATOR
         )
-        return uid
 
     def addlocation(self, location) -> None:
         if ":" in location:
@@ -591,6 +589,9 @@ class Xliff1File(XliffFile[U]):
             filenode = next(
                 self.document.getroot().iterchildren(self.namespaced("file"))
             )
+        # Holding the file node keeps its lxml proxy alive, so the ancestor
+        # walk in Xliff1Unit._file_id_prefix reuses it instead of rebuilding it
+        self._filenode = filenode
         self.body = self.getbodynode(filenode, createifmissing=True)
 
     def createfilenode(
@@ -729,9 +730,8 @@ class Xliff1File(XliffFile[U]):
         return etree.SubElement(filenode, self.namespaced("body"))
 
     def addunit(self, unit, new=True) -> None:
-        parts = unit.getid().split("\x04")
-        if len(parts) > 1:
-            filename, unitid = parts[0], "\x04".join(parts[1:])
+        filename, separator, unitid = unit.getid().partition(ID_SEPARATOR)
+        if separator:
             self.switchfile(filename, createifmissing=True)
             unit._set_local_id(unitid)
 
@@ -792,6 +792,7 @@ class Xliff1File(XliffFile[U]):
             filenode = self.createfilenode(filename)
             self.document.getroot().append(filenode)
 
+        self._filenode = filenode
         self.body = self.getbodynode(filenode, createifmissing=createifmissing)
         return self.body is not None
 
