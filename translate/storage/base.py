@@ -23,6 +23,7 @@ from __future__ import annotations
 import codecs
 import logging
 import os
+import re
 from contextlib import contextmanager
 from contextvars import ContextVar
 from io import BytesIO
@@ -268,6 +269,9 @@ class TranslationUnit:
     _line_number: int | None = None
     notes = ""
 
+    _invalid_id_char = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff]")
+    """Pattern matching a control character rejected in identifiers."""
+
     def __init__(self, source=None) -> None:
         """Constructs a TranslationUnit containing the given source string."""
         self._context = ""
@@ -450,10 +454,8 @@ class TranslationUnit:
         """
         if not isinstance(value, str):
             raise TypeError("unit identifier must be a string")
-        if any(
-            (ord(char) < 32 and char not in "\t\n\r") or char in "\ufffe\uffff"
-            for char in value
-        ):
+        # Printable strings never contain invalid characters; skip the search.
+        if not value.isprintable() and self._invalid_id_char.search(value):
             raise ValueError("unit identifier contains an invalid control character")
 
     def setid(self, value) -> None:
