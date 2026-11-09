@@ -1,0 +1,57 @@
+[
+  {
+    "upstream_repo": "translate/translate",
+    "head_sha": "6a4234b9c87b945cd683610d384c0d0cf6839bc5",
+    "file": "translate/storage/ts2.py",
+    "function": "tsunit.getcontextname",
+    "native_test_cmd": "uv run --no-sync python -m pytest tests/translate/storage/test_ts2.py -q",
+    "bench_cmd": "uv run --no-sync python osspr-intake/harness/bench_ts_getcontextname.py",
+    "baseline_median_ms": 5853.96,
+    "baseline_noise_pct": 1.49,
+    "tests_pass_on_baseline": true,
+    "workload": "Parse a Qt TS 2.1 file with one MainWindow context and 12000 messages (location, source, translation).",
+    "notes": "addunit calls getcontextname once per message. Element.find('name') walks every sibling of the shared context, so one large context (normal lupdate output for a class) makes parse quadratic. On a 4000-message context, find took about 96ms versus 0.3ms to read the first child when its tag is name, with find kept as the fallback. This harness is dominated by that lookup."
+  },
+  {
+    "upstream_repo": "translate/translate",
+    "head_sha": "6a4234b9c87b945cd683610d384c0d0cf6839bc5",
+    "file": "translate/storage/properties.py",
+    "function": "DialectStrings.strip_inline_comments_from_line",
+    "native_test_cmd": "uv run --no-sync python -m pytest tests/translate/storage/test_properties.py -q",
+    "bench_cmd": "uv run --no-sync python osspr-intake/harness/bench_strings_strip.py",
+    "baseline_median_ms": 919.75,
+    "baseline_noise_pct": 0.95,
+    "tests_pass_on_baseline": true,
+    "workload": "Strip inline comments on 200000 .strings lines: mostly plain entries, plus real /* */ comments and /* inside quotes.",
+    "notes": "strings parsing calls this on every line and appends each character to a list even when the line has no /* comment. Returning the original line when '/*' is absent matches current results, including real comments and quotes that contain /*, and was about 25x faster on a similar mix. Almost all of this harness is that character walk."
+  },
+  {
+    "upstream_repo": "translate/translate",
+    "head_sha": "6a4234b9c87b945cd683610d384c0d0cf6839bc5",
+    "file": "translate/misc/quote.py",
+    "function": "javapropertiesencode",
+    "native_test_cmd": "uv run --no-sync python -m pytest tests/translate/misc/test_quote.py -q",
+    "bench_cmd": "uv run --no-sync python osspr-intake/harness/bench_javapropertiesencode.py",
+    "baseline_median_ms": 918.82,
+    "baseline_noise_pct": 1.97,
+    "tests_pass_on_baseline": true,
+    "workload": "Encode 250000 Java properties values (plain UI text, plus leading space, escapes, and non-latin1).",
+    "notes": "Default Java properties output encodes every value here. The iso-8859-1 path still walks every character in Python. A latin-1 str.encode check plus the existing control-character translation table matches current output, including a leading-space escape, controls, and non-latin1 \\uXXXX fallback, and was about 2.6x faster on this batch."
+  },
+  {
+    "upstream_repo": "translate/translate",
+    "head_sha": "6a4234b9c87b945cd683610d384c0d0cf6839bc5",
+    "file": "translate/misc/quote.py",
+    "function": "propertiesdecode",
+    "native_test_cmd": "uv run --no-sync python -m pytest tests/translate/misc/test_quote.py -q",
+    "bench_cmd": "uv run --no-sync python osspr-intake/harness/peak_propertiesdecode.py",
+    "metric_kind": "peak_memory_bytes",
+    "baseline_value": 17055289,
+    "baseline_noise_pct": 0.0,
+    "metric_benchmark": "uv run --no-sync python osspr-intake/harness/peak_propertiesdecode.py",
+    "labeled_data": null,
+    "tests_pass_on_baseline": true,
+    "workload": "Decode one 1.83MB unescaped Java properties value (a repeated help sentence).",
+    "notes": "unit.source and prop2po decode every value here. The function appends one character at a time even when there is no backslash, so a long help or template string peaks far above the text itself. Returning the original string when it contains no backslash keeps the decoded text identical and drops this traced peak. Five runs printed the same byte count."
+  }
+]
