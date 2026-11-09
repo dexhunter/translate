@@ -369,53 +369,50 @@ def javapropertiesencode(source: str, encoding: str | None = None) -> str:
     if encoding is None:
         encoding = "iso-8859-1"
 
-    output = []
-    if source and source[0] == " ":
-        output.append("\\")
-
-    # Determine character validation function based on encoding
-    # Fast path for common encodings using ordinal checks (no exceptions)
+    # Characters above ``last`` or in ``unencodable`` are escaped as \uXXXX
+    last = "\U0010ffff"
+    unencodable = set()
+    # Common encodings are checked by code point (no exceptions)
     if encoding in {"ascii", "us-ascii"}:
-
-        def is_valid_char(charnum: int) -> bool | None:
-            return 0 <= charnum < 128
+        last = "\x7f"
+        encodable = source.isascii()
     elif encoding in {"iso-8859-1", "latin-1", "latin1"}:
-
-        def is_valid_char(charnum: int) -> bool | None:
-            return 0 <= charnum <= 255
+        last = "\xff"
+        encodable = source.isascii() or max(source) <= last
     else:
         # For other encodings, try the full string first for performance
         try:
             source.encode(encoding)
-            # All characters are valid, use a function that always returns True
-
-            def is_valid_char(charnum: int) -> bool | None:
-                return True
+            encodable = True
         except (UnicodeEncodeError, LookupError):
-            # Some characters can't be encoded, need per-character check
-            def is_valid_char(charnum: int) -> bool | None:
-                return None  # Signal to use try/except
-
-    # Process each character with the appropriate validation
-    for char in source:
-        charnum = ord(char)
-        if char in controlchars:
-            output.append(controlchars[char])
-        else:
-            valid = is_valid_char(charnum)
-            if valid is None:
-                # Need to test encoding for this character
+            encodable = False
+            # Some characters can't be encoded, test each distinct one
+            for char in set(source).difference(controlchars):
                 try:
                     char.encode(encoding)
-                    output.append(str(char))
                 except (UnicodeEncodeError, LookupError):
-                    output.append(f"\\u{charnum:04X}")
-            elif valid:
-                output.append(str(char))
-            else:
-                output.append(f"\\u{charnum:04X}")
+                    unencodable.add(char)
 
-    return "".join(output)
+    if encodable and "\\" not in source and source.isprintable():
+        # The control characters are the backslash and unprintable characters,
+        # so nothing needs an escape
+        output = str(source)
+    elif encodable:
+        # Only the control characters need an escape
+        output = source.translate(controlchars_trans)
+    else:
+        output = "".join(
+            [
+                controlchars.get(char)
+                or (
+                    char
+                    if char <= last and char not in unencodable
+                    else f"\\u{ord(char):04X}"
+                )
+                for char in source
+            ]
+        )
+    return "\\" + output if source.startswith(" ") else output
 
 
 def java_utf8_properties_encode(source: str) -> str:
