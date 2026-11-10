@@ -1,0 +1,57 @@
+[
+  {
+    "upstream_repo": "translate/translate",
+    "head_sha": "6ec23e630ebbd6d32aa0d1db7e3790d188b2b1d7",
+    "file": "translate/misc/quote.py",
+    "function": "entitydecode",
+    "native_test_cmd": "python -m pytest tests/translate/misc/test_quote.py::TestEncoding::test_htmlencoding tests/translate/misc/test_quote.py::TestEncoding::test_htmlencoding_existing_entities tests/translate/misc/test_quote.py::TestEncoding::test_htmlencoding_passthrough tests/translate/misc/test_quote.py::TestEncoding::test_htmlencoding_nonentities tests/translate/storage/test_dtd.py::test_unquotefromdtd tests/translate/storage/test_dtd.py::test_unquotefromdtd_unimplemented_cases -q",
+    "bench_cmd": "python osspr-intake/harness/bench_entitydecode.py",
+    "baseline_median_ms": 386.1699,
+    "baseline_noise_pct": 15.4694,
+    "tests_pass_on_baseline": true,
+    "workload": "2356 Mozilla-style DTD/HTML strings (plain UI text plus named entities such as &amp; and &quot;), decoded 80 times with the HTML named-entity map.",
+    "notes": "The loop appends every character and, when an ampersand decodes to '&', slices the rest of the string to scan for another entity. Most translation strings contain no '&', so returning them unchanged and copying only the runs between entities is a local change. A direct comparison was about 17x on entity-bearing strings and about 100x on plain strings."
+  },
+  {
+    "upstream_repo": "translate/translate",
+    "head_sha": "6ec23e630ebbd6d32aa0d1db7e3790d188b2b1d7",
+    "file": "translate/misc/quote.py",
+    "function": "extract",
+    "native_test_cmd": "python -m pytest tests/translate/misc/test_quote.py::test_extract tests/translate/storage/test_dtd.py::TestDTD::test_simpleentity tests/translate/storage/test_dtd.py::TestDTD::test_commententity tests/translate/storage/test_dtd.py::TestDTD::test_newlines_in_entity tests/translate/storage/test_dtd.py::TestDTD::test_entity_escaping tests/translate/storage/test_dtd.py::TestDTD::test_entity_escaping_roundtrip -q",
+    "bench_cmd": "python osspr-intake/harness/bench_extract.py",
+    "baseline_median_ms": 310.7281,
+    "baseline_noise_pct": 9.5968,
+    "tests_pass_on_baseline": true,
+    "workload": "6000 DTD lines (matching-quote entity definitions, plus a comment every 20 lines), each passed to extract 48 times the way dtdfile.parse does.",
+    "notes": "dtdfile.parse calls extract for every entity and comment. The common call uses matching quotes and no escape, but the function still collects every delimiter into lists, sorts them, and tests list membership. Two str.find calls return the same span; on 8500 such lines that was 9.3 ms versus 1.9 ms."
+  },
+  {
+    "upstream_repo": "translate/translate",
+    "head_sha": "6ec23e630ebbd6d32aa0d1db7e3790d188b2b1d7",
+    "file": "translate/storage/php.py",
+    "function": "phpdecode",
+    "native_test_cmd": "python -m pytest tests/translate/storage/test_php.py::test_php_escaping_single_quote tests/translate/storage/test_php.py::test_php_escaping_double_quote -q",
+    "bench_cmd": "python osspr-intake/harness/bench_phpdecode.py",
+    "baseline_median_ms": 354.8775,
+    "baseline_noise_pct": 3.7647,
+    "tests_pass_on_baseline": true,
+    "workload": "5000 PHP localization strings, mostly double-quoted and free of backslashes, with a tenth containing newline, tab, quote, octal, or hex escapes, decoded 64 times.",
+    "notes": "Double-quoted input always runs seven str.replace passes and two regular expressions, even when the value has no backslash. An early return when '\\' is absent matches the PHP tests and was about 5x faster on 8000 mostly plain double-quoted strings (9.3 ms versus 1.8 ms)."
+  },
+  {
+    "upstream_repo": "translate/translate",
+    "head_sha": "6ec23e630ebbd6d32aa0d1db7e3790d188b2b1d7",
+    "file": "translate/misc/quote.py",
+    "function": "java_utf8_properties_encode",
+    "native_test_cmd": "python -m pytest tests/translate/misc/test_quote.py::TestEncoding::test_java_utf8_properties_encode tests/translate/storage/test_properties.py::TestProp::test_unicode_escaping tests/translate/storage/test_properties.py::TestProp::test_controlutf8_source -q",
+    "bench_cmd": "python osspr-intake/harness/bench_java_utf8_peak.py",
+    "metric_kind": "peak_memory_bytes",
+    "baseline_value": 476986,
+    "baseline_noise_pct": 0.0,
+    "metric_benchmark": "python osspr-intake/harness/bench_java_utf8_peak.py",
+    "labeled_data": null,
+    "tests_pass_on_baseline": true,
+    "workload": "One 7840-character Java/Mozilla .properties value mixing Japanese, Russian, and a Windows path, including newlines, a tab, and a backslash.",
+    "notes": "Java UTF-8, Java UTF-16, and Mozilla dialects call this for every value they write. It appends one list entry per character, and non-Latin-1 characters are not interned, so a CJK or Cyrillic value allocates a tiny string per character. controlchars_trans already encodes the same mapping: str.translate returned an identical string and peaked at 23619 bytes versus 476986 here."
+  }
+]
