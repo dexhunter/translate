@@ -1,0 +1,50 @@
+[
+  {
+    "upstream_repo": "translate/translate",
+    "head_sha": "4d2eee68a7d8ba841ab0e1b3082507ca3d4768c7",
+    "file": "translate/misc/quote.py",
+    "function": "entityencode",
+    "native_test_cmd": "uv run --no-sync python -m pytest tests/translate/misc/test_quote.py -q",
+    "bench_cmd": "uv run --no-sync python osspr-intake/harness/bench_entityencode.py",
+    "baseline_median_ms": 193.3863,
+    "baseline_noise_pct": 1.6177,
+    "tests_pass_on_baseline": true,
+    "why": "quotefordtd and htmlentityencode call this for every value they write. The loop takes ord() of each character, including plain text with no ampersand. Copying each run with str.translate, and keeping the current '&' scan (a later '&' still drops the open entity), matched current output and was about 49% faster on this DTD batch."
+  },
+  {
+    "upstream_repo": "translate/translate",
+    "head_sha": "4d2eee68a7d8ba841ab0e1b3082507ca3d4768c7",
+    "file": "translate/storage/properties.py",
+    "function": "Dialect.find_delimiter",
+    "native_test_cmd": "uv run --no-sync python -m pytest tests/translate/storage/test_properties.py -q",
+    "bench_cmd": "uv run --no-sync python osspr-intake/harness/bench_find_delimiter.py",
+    "baseline_median_ms": 83.3768,
+    "baseline_noise_pct": 1.2624,
+    "tests_pass_on_baseline": true,
+    "why": "propfile.parse calls this on every entry. After it finds '=', it still scans the rest of the value for ':'. Stopping each later search at the earliest delimiter already found matched Java, .strings, escapes, and quoted keys, and was about 30% faster on 50,000 lines."
+  },
+  {
+    "upstream_repo": "translate/translate",
+    "head_sha": "4d2eee68a7d8ba841ab0e1b3082507ca3d4768c7",
+    "file": "translate/filters/decoration.py",
+    "function": "getnumbers",
+    "native_test_cmd": "uv run --no-sync python -m pytest tests/translate/filters/test_decoration.py -q",
+    "bench_cmd": "uv run --no-sync python osspr-intake/harness/bench_getnumbers.py",
+    "baseline_median_ms": 113.7892,
+    "baseline_noise_pct": 1.3707,
+    "tests_pass_on_baseline": true,
+    "why": "The pofilter numbers check calls this on every source and translation. It walks each character in Python. A decimal-digit scan matches the current list when the string has no degree sign and no non-decimal digit (those keep this loop, including '36°' and '10..20') and was about 44% faster on this batch."
+  },
+  {
+    "upstream_repo": "translate/translate",
+    "head_sha": "4d2eee68a7d8ba841ab0e1b3082507ca3d4768c7",
+    "file": "translate/filters/checks/standard.py",
+    "function": "StandardChecker.pythonbraceformat",
+    "native_test_cmd": "uv run --no-sync python -m pytest tests/translate/filters/checks/test_format.py -q",
+    "bench_cmd": "uv run --no-sync python osspr-intake/harness/bench_pythonbraceformat.py",
+    "baseline_median_ms": 67.0440,
+    "baseline_noise_pct": 1.1833,
+    "tests_pass_on_baseline": true,
+    "why": "pofilter runs this on every pair. The body compiles a brace pattern and scans for '{{' even when the strings have no brace. Returning success immediately in that case matches the current result, and compiling the pattern once covers the pairs that do use braces. On this batch that was about 80% faster."
+  }
+]
