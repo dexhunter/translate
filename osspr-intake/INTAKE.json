@@ -1,0 +1,57 @@
+[
+  {
+    "upstream_repo": "translate/translate",
+    "head_sha": "71a4795a61f520c4f956fe610acb44683c758bc8",
+    "file": "translate/storage/mo.py",
+    "function": "mofile.serialize",
+    "native_test_cmd": "uv run --no-sync python -m pytest tests/translate/storage/test_mo.py -q",
+    "bench_cmd": "uv run --no-sync python osspr-intake/harness/bench_mo_serialize.py",
+    "baseline_median_ms": 198.1910,
+    "baseline_noise_pct": 4.2246,
+    "tests_pass_on_baseline": true,
+    "workload": "Serialize a 6000-message MO catalog: header, UI sentences, a context every 20 messages, a plural every 40, and some blank targets.",
+    "notes": "serialize grows the key and value blobs with ids = ids + id + b'\\0' (and the same for the translations) and copies the offset lists with koffsets = [*koffsets, ...]. Joining those pieces and appending the offsets returned a byte-identical file. On this catalog that was 198 ms versus 37 ms."
+  },
+  {
+    "upstream_repo": "translate/translate",
+    "head_sha": "71a4795a61f520c4f956fe610acb44683c758bc8",
+    "file": "translate/storage/trados.py",
+    "function": "unescape",
+    "native_test_cmd": "uv run --no-sync python -m pytest tests/translate/storage/test_trados.py -q",
+    "bench_cmd": "uv run --no-sync python osspr-intake/harness/bench_trados_unescape.py",
+    "baseline_median_ms": 21.4773,
+    "baseline_noise_pct": 4.5647,
+    "tests_pass_on_baseline": true,
+    "workload": "Unescape 40000 Trados translation-memory segments, mostly plain sentences, with \\\\emdash and \\\\~ escapes mixed in.",
+    "notes": "unescape runs str.replace for every Trados escape, and every escape starts with a backslash. Returning the original segment when it contains no backslash matches the current text, including segments that use \\\\emdash or \\\\~. On this export that was 21 ms versus 3.5 ms."
+  },
+  {
+    "upstream_repo": "translate/translate",
+    "head_sha": "71a4795a61f520c4f956fe610acb44683c758bc8",
+    "file": "translate/storage/base.py",
+    "function": "TranslationUnit.validate_id",
+    "native_test_cmd": "uv run --no-sync python -m pytest tests/translate/storage/test_base.py::test_validate_id_rejects_xml_unsafe_controls -q",
+    "bench_cmd": "uv run --no-sync python osspr-intake/harness/bench_validate_id.py",
+    "baseline_median_ms": 63.2963,
+    "baseline_noise_pct": 10.0527,
+    "tests_pass_on_baseline": true,
+    "workload": "Validate 50000 resource ids (dotted UI ids, a few with tab and newline, and non-Latin keys) the way setid does for each unit.",
+    "notes": "validate_id calls ord() on every character. A printable string cannot contain the rejected controls, so that scan only has to run when the id is not printable. Tabs, newlines, and other allowed non-printable characters still take the current scan, including name\\twith\\nwhitespace\\r. On this batch that was 63 ms versus 3 ms."
+  },
+  {
+    "upstream_repo": "translate/translate",
+    "head_sha": "71a4795a61f520c4f956fe610acb44683c758bc8",
+    "file": "translate/storage/pypo.py",
+    "function": "splitlines",
+    "native_test_cmd": "uv run --no-sync python -m pytest tests/translate/storage/test_po.py::TestPOFile::test_parse_file tests/translate/storage/test_po.py::TestPOFile::test_unusual_line_endings tests/translate/storage/test_po.py::TestPOFile::test_parse_source_string tests/translate/storage/test_po.py::TestPOFile::test_unicode -q",
+    "bench_cmd": "uv run --no-sync python osspr-intake/harness/peak_splitlines.py",
+    "metric_kind": "peak_memory_bytes",
+    "baseline_value": 13103637,
+    "baseline_noise_pct": 0.0,
+    "metric_benchmark": "uv run --no-sync python osspr-intake/harness/peak_splitlines.py",
+    "labeled_data": null,
+    "tests_pass_on_baseline": true,
+    "workload": "Split one 3.5 MB PO catalog (25000 messages, notes on some entries) the way pofile.parse does, including a separate \\r\\r\\n sample.",
+    "notes": "splitlines splits the file and then allocates a second string per line to put the newline back, so both copies are live together. Releasing each split piece after that copy is built returns the same lines, including a BOM strip and \\r\\r\\n endings. On this catalog the traced peak was 13103637 bytes versus 7386372 bytes."
+  }
+]
