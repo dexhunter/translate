@@ -111,7 +111,17 @@ def splitlines(text: bytes) -> tuple[list[bytes], str]:
                 newline = b"\r"
             break
 
-    return [x + newline for x in text.split(newline)], newline.decode()
+    lines = []
+    start = 0
+    width = len(newline)
+    while True:
+        end = text.find(newline, start)
+        if end < 0:
+            lines.append(text[start:] + newline)
+            break
+        lines.append(text[start : end + width])
+        start = end + width
+    return lines, newline.decode()
 
 
 def escapehandler(match: re.Match) -> str:
